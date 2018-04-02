@@ -14,6 +14,7 @@ include_directories(${PROJECT_SOURCE_DIR}/source)
 set(SOURCE_FILES main.c)
 
 configure_file(content/image.png content/image.png COPYONLY)
+configure_file(content/oldHero.png content/oldHero.png COPYONLY)
 
 add_executable(First_Code ${SOURCE_FILES})
 target_link_libraries(First_Code ${SDL2_LIBRARY} ${SDL2_TTF_LIBRARY} ${SDL2_IMAGE_LIBRARY})

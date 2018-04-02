@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#include <malloc.h>
 
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
@@ -13,6 +14,11 @@ typedef enum KEY_STATE {
     PRESSED,
     RELEASED
 } KEY_STATE_T;
+
+typedef enum bool {
+    FALSE = 0,
+    TRUE = 1
+} bool_t;
 
 typedef struct input_state {
     KEY_STATE_T up;
@@ -29,7 +35,9 @@ typedef struct vector2 {
 typedef struct entity {
     vector2_t position;
     vector2_t velocity;
-    SDL_Surface* sprite;
+    SDL_Surface *sprite;
+    SDL_Rect srcR;
+    SDL_Rect destR;
 } entity_t;
 
 input_state_t initInput(){
@@ -70,19 +78,45 @@ void clean(SDL_Texture* texture, SDL_Renderer* renderer, SDL_Window* window){
     SDL_Quit();
 }
 
-SDL_Texture* loadTexture(SDL_Renderer* renderer, SDL_Surface* surface){
+SDL_Texture *loadTexture(SDL_Renderer* renderer, SDL_Surface* surface){
     SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
     SDL_FreeSurface(surface);
     return texture;
 };
 
-int main(int argc, char* args[]){
+SDL_Rect *splitImage(SDL_Rect *rect, int column, int row) {
 
+    SDL_Rect *image = (SDL_Rect *) malloc((column * row) * sizeof(SDL_Rect));
+    int splitWidth = rect->w / column;
+    int splitHeight = rect->h / row;
+    int i = 0;
+    printf("SplitWidth: %d SplitHeight: %d\n", splitWidth, splitHeight);
+
+    for (int y = 0; y < row; ++y) {
+        for (int x = 0; x < column; ++x) {
+            (image + i)->x = splitWidth * x;
+            (image + i)->y = splitHeight * y;
+            (image + i)->w = splitWidth;
+            (image + i)->h = splitHeight;
+            printf("SplitImage: %d PositionX: %d PositionY: %d\n", i, (image + i)->x, (image + i)->y);
+            i++;
+        }
+    }
+
+    return image;
+}
+
+int main(int argc, char* args[]){
     char gameTitle[] = "Game Window";
     SDL_Window* window = NULL;
     SDL_Renderer* renderer = NULL;
     SDL_Texture* texture = NULL;
-    SDL_Rect rect;
+
+    int prevTime = 0;
+    int currentTime = 0;
+    float deltaTime = 0;
+    float frameTime = 0;
+    int close_requested = 0;
 
     input_state_t inputState = initInput();
     entity_t player;
@@ -95,24 +129,31 @@ int main(int argc, char* args[]){
     window = SDL_CreateWindow(gameTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, 0);
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
-    player.sprite = IMG_Load("content/image.png");
+    player.sprite = IMG_Load("content/oldHero.png");
     texture = loadTexture(renderer, player.sprite);
 
-    SDL_QueryTexture(texture, NULL, NULL, &rect.w, &rect.h);
-    rect.w /= 4;
-    rect.h /= 4;
+    int i = 0;
 
-    player.position.x = (SCREEN_WIDTH - rect.w)/2;
-    player.position.y = (SCREEN_HEIGHT - rect.h)/2;
+    SDL_QueryTexture(texture, NULL, NULL, &player.srcR.w, &player.srcR.h);
+    SDL_Rect *spriteSheet = splitImage(&player.srcR, 6, 1);
+    player.srcR = spriteSheet[i];
 
-    uint32_t frameStart = SDL_GetTicks();
-    int frameTime, elapsedTime;
-    int close_requested = 0;
+    player.destR.x = 0;
+    player.destR.y = 0;
+    player.destR.w = 16 * 4;
+    player.destR.h = 18 * 4;
+
+    player.position.x = (SCREEN_WIDTH - player.destR.w)/2;
+    player.position.y = (SCREEN_HEIGHT - player.destR.h)/2;
 
     while(!close_requested) {
-        frameTime = SDL_GetTicks();
-        elapsedTime = frameTime - frameStart;
-        frameStart = frameTime;
+
+        //Time loop
+        prevTime = currentTime;
+        currentTime = SDL_GetTicks();
+        deltaTime = (currentTime - prevTime) / 1000.0f;
+        frameTime += deltaTime;
+
         updateInput(&inputState);
 
         player.velocity.x = player.velocity.y = 0;
@@ -125,29 +166,44 @@ int main(int argc, char* args[]){
         if(inputState.right == PRESSED) player.velocity.x += SPEED;
 
         //Update entity velocity
-        player.position.x += player.velocity.x / 60;
-        player.position.y += player.velocity.y / 60;
+        player.position.x += player.velocity.x * deltaTime;
+        player.position.y += player.velocity.y * deltaTime;
 
         //Collision detection
         if(player.position.x <= 0) player.position.x = 0;
         if(player.position.y <= 0) player.position.y = 0;
-        if(player.position.x >= SCREEN_WIDTH - rect.w) player.position.x = SCREEN_WIDTH - rect.w;
-        if(player.position.y >= SCREEN_HEIGHT - rect.h) player.position.y = SCREEN_HEIGHT - rect.h;
+        if(player.position.x >= SCREEN_WIDTH - player.destR.w) {
+            player.position.x = SCREEN_WIDTH - player.destR.w;
+        }
+        if(player.position.y >= SCREEN_HEIGHT - player.destR.h) {
+            player.position.y = SCREEN_HEIGHT - player.destR.h;
+        }
+
+        if(frameTime >= 0.1f){
+            frameTime = 0;
+            player.srcR = spriteSheet[i];
+            if(i >= 6){
+                i = 0;
+                player.srcR = spriteSheet[i];
+            }
+            i++;
+        }
 
         //Update entity position
-        rect.y = (int) player.position.y;
-        rect.x = (int) player.position.x;
+        player.destR.y = (int) player.position.y;
+        player.destR.x = (int) player.position.x;
 
         //Entity renders
         SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, NULL, &rect);
+        SDL_RenderCopy(renderer, texture, &player.srcR, &player.destR);
         SDL_RenderPresent(renderer);
-
-        if(frameTime < FRAME_DELAY)
-            SDL_Delay(FRAME_DELAY - elapsedTime);
     }
 
-    clean(texture, renderer, window);
+    SDL_DestroyTexture(texture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+
+    SDL_Quit();
 
     return 0;
 }

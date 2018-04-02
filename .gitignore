@@ -3,6 +3,7 @@
 .idea/dictionaries
 .idea/.name
 .idea/workspace.xml
+.idea/vcs.xml
 
 # CMake
 cmake-build-debug/
