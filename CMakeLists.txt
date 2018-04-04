@@ -1,20 +1,24 @@
 cmake_minimum_required(VERSION 3.9)
-project(First_Code C)
+project(Arcade-Game C)
 
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+add_definitions(-DDEBUG)
 
-find_package(SDL2 REQUIRED)
-find_package(SDL2_ttf REQUIRED)
-find_package(SDL2_image REQUIRED)
+set(plataform "x32")
+#set(plataform "x64")
 
-include_directories(${SDL2_INCLUDE_DIR})
-include_directories(${PROJECT_SOURCE_DIR}/content)
-include_directories(${PROJECT_SOURCE_DIR}/source)
+### DEPS
+set(deps_dir "${CMAKE_SOURCE_DIR}/deps")
+set(deps_include_dir "${CMAKE_SOURCE_DIR}/deps/include")
+set(deps_bin_dir "${CMAKE_SOURCE_DIR}/deps/bin/${plataform}")
+set(deps_lib_dir "${CMAKE_SOURCE_DIR}/deps/lib/${plataform}")
 
-set(SOURCE_FILES main.c)
+include_directories("include;${deps_include_dir}")
 
-configure_file(content/image.png content/image.png COPYONLY)
-configure_file(content/oldHero.png content/oldHero.png COPYONLY)
+#-lSDL2_mixer
+set(libs "-lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf")
+set(SOURCE_FILES include/status.h source/status.c main.c)
+add_executable(Arcade-Game ${SOURCE_FILES})
+target_link_libraries(Arcade-Game ${libs})
 
-add_executable(First_Code ${SOURCE_FILES})
-target_link_libraries(First_Code ${SDL2_LIBRARY} ${SDL2_TTF_LIBRARY} ${SDL2_IMAGE_LIBRARY})
+file(COPY ${deps_bin_dir}/ DESTINATION .)
+file(COPY content DESTINATION .)

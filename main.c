@@ -9,6 +9,8 @@ const int SPEED = 300;
 const int FPS = 60;
 const int FRAME_DELAY = 1000/60;
 
+//STRUCTURES
+
 typedef enum KEY_STATE {
     NORMAL,
     PRESSED,
@@ -35,15 +37,12 @@ typedef struct vector2 {
 typedef struct entity {
     vector2_t position;
     vector2_t velocity;
-    SDL_Surface *sprite;
     SDL_Rect srcR;
     SDL_Rect destR;
+    SDL_Texture* texture;
 } entity_t;
 
-input_state_t initInput(){
-    input_state_t inputState =  {NORMAL, NORMAL, NORMAL, NORMAL, NORMAL};
-    return inputState;
-}
+//FUNCTIONS
 
 void updateInput(input_state_t* inputState) {
 
@@ -70,15 +69,16 @@ void updateInput(input_state_t* inputState) {
     }
 }
 
-void clean(SDL_Texture* texture, SDL_Renderer* renderer, SDL_Window* window){
+void clean(SDL_Texture* texture, SDL_Renderer* renderer, SDL_Window* window, bool_t quit){
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
 
-    SDL_Quit();
+    if(quit) SDL_Quit();
 }
 
-SDL_Texture *loadTexture(SDL_Renderer* renderer, SDL_Surface* surface){
+SDL_Texture *loadTexture(SDL_Renderer* renderer, char path[]){
+    SDL_Surface* surface = IMG_Load(path);
     SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
     SDL_FreeSurface(surface);
     return texture;
@@ -106,20 +106,63 @@ SDL_Rect *splitImage(SDL_Rect *rect, int column, int row) {
     return image;
 }
 
+bool_t checkCollision(SDL_Rect object1, SDL_Rect object2){
+    if(object1.x + object1.w < object2.x || object1.x > object2.x + object2.w ||
+            object1.y + object1.h < object2.y || object1.y > object2.y + object2.h)
+        return FALSE;
+    else
+        return TRUE;
+}
+
+bool_t checkLeftCollision(SDL_Rect object1, SDL_Rect object2){
+    if(object1.x + object1.w < object2.x || object1.y + object1.h < object2.y || object1.y > object2.y + object2.h)
+        return FALSE;
+    else
+        return TRUE;
+}
+
+bool_t checkRightCollision(SDL_Rect object1, SDL_Rect object2){
+    if(object1.x > object2.x + object2.w || object1.y + object1.h < object2.y || object1.y > object2.y + object2.h)
+        return FALSE;
+    else
+        return TRUE;
+}
+
+bool_t checkTopCollision(SDL_Rect object1, SDL_Rect object2){
+    if(object1.y + object1.h < object2.y || object1.x + object1.w < object2.x || object1.x > object2.x + object2.w)
+        return FALSE;
+    else
+        return TRUE;
+}
+
+bool_t checkBottomCollision(SDL_Rect object1, SDL_Rect object2){
+    if(object1.y > object2.y + object2.h || object1.y + object1.h < object2.y || object1.y > object2.y + object2.h)
+        return FALSE;
+    else
+        return TRUE;
+}
+
+void destroyTextures(SDL_Texture *textures){
+    //int length = (int) sizeof (textures) / sizeof (SDL_Texture);
+}
+
+//MAIN FUNCTION
+
 int main(int argc, char* args[]){
     char gameTitle[] = "Game Window";
     SDL_Window* window = NULL;
     SDL_Renderer* renderer = NULL;
-    SDL_Texture* texture = NULL;
 
     int prevTime = 0;
     int currentTime = 0;
     float deltaTime = 0;
     float frameTime = 0;
     int close_requested = 0;
+    int i = 0;
 
-    input_state_t inputState = initInput();
+    input_state_t inputState = {NORMAL, NORMAL, NORMAL, NORMAL, NORMAL};
     entity_t player;
+    entity_t enemy;
 
     if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER) != 0) {
         printf("error initializing SDL: %s\n", SDL_GetError());
@@ -129,22 +172,24 @@ int main(int argc, char* args[]){
     window = SDL_CreateWindow(gameTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, 0);
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
-    player.sprite = IMG_Load("content/oldHero.png");
-    texture = loadTexture(renderer, player.sprite);
-
-    int i = 0;
-
-    SDL_QueryTexture(texture, NULL, NULL, &player.srcR.w, &player.srcR.h);
+    //Player Data
+    player.texture = loadTexture(renderer, "content/oldHero.png");
+    SDL_QueryTexture(player.texture, NULL, NULL, &player.srcR.w, &player.srcR.h);
     SDL_Rect *spriteSheet = splitImage(&player.srcR, 6, 1);
     player.srcR = spriteSheet[i];
-
-    player.destR.x = 0;
-    player.destR.y = 0;
     player.destR.w = 16 * 4;
     player.destR.h = 18 * 4;
+    player.position.x = 40;
+    player.position.y = (SCREEN_HEIGHT - player.destR.h);
+    SDL_RenderDrawRect(renderer, &enemy.destR);
 
-    player.position.x = (SCREEN_WIDTH - player.destR.w)/2;
-    player.position.y = (SCREEN_HEIGHT - player.destR.h)/2;
+    //Enemy Data
+    enemy.texture = loadTexture(renderer, "content/image.png");
+    SDL_QueryTexture(enemy.texture, NULL, NULL, &enemy.destR.w, &enemy.destR.h);
+    enemy.destR.w /= 4;
+    enemy.destR.h /= 4;
+    enemy.destR.x = (SCREEN_WIDTH - enemy.destR.w);
+    enemy.destR.y = (SCREEN_HEIGHT - enemy.destR.h);
 
     while(!close_requested) {
 
@@ -165,20 +210,28 @@ int main(int argc, char* args[]){
         if(inputState.left == PRESSED) player.velocity.x += -SPEED;
         if(inputState.right == PRESSED) player.velocity.x += SPEED;
 
+        //Collision detection
+        SDL_SetTextureColorMod(player.texture, 255, 255, 255);
+        if(player.velocity.x > 0 && checkCollision(player.destR, enemy.destR)) {
+            player.velocity.x = 0;
+            SDL_SetTextureColorMod(player.texture, 255, 0, 0);
+        }
+        if(player.velocity.y > 0 && checkCollision(player.destR, enemy.destR)) {
+            player.velocity.y = 0;
+            SDL_SetTextureColorMod(player.texture, 255, 0, 0);
+        }
+
         //Update entity velocity
         player.position.x += player.velocity.x * deltaTime;
         player.position.y += player.velocity.y * deltaTime;
 
-        //Collision detection
+        //Window collision detection
         if(player.position.x <= 0) player.position.x = 0;
         if(player.position.y <= 0) player.position.y = 0;
-        if(player.position.x >= SCREEN_WIDTH - player.destR.w) {
-            player.position.x = SCREEN_WIDTH - player.destR.w;
-        }
-        if(player.position.y >= SCREEN_HEIGHT - player.destR.h) {
-            player.position.y = SCREEN_HEIGHT - player.destR.h;
-        }
+        if(player.position.x >= SCREEN_WIDTH - player.destR.w) player.position.x = SCREEN_WIDTH - player.destR.w;
+        if(player.position.y >= SCREEN_HEIGHT - player.destR.h) player.position.y = SCREEN_HEIGHT - player.destR.h;
 
+        //Apply animation
         if(frameTime >= 0.1f){
             frameTime = 0;
             player.srcR = spriteSheet[i];
@@ -190,20 +243,30 @@ int main(int argc, char* args[]){
         }
 
         //Update entity position
-        player.destR.y = (int) player.position.y;
         player.destR.x = (int) player.position.x;
+        player.destR.y = (int) player.position.y;
 
-        //Entity renders
+        //Set background color
+        SDL_SetRenderDrawColor( renderer, 0xFF, 0xFF, 0xFF, 0xFF );
         SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, &player.srcR, &player.destR);
+#if DEBUG
+        //Box collider render
+        SDL_SetRenderDrawColor( renderer, 0xFF, 0x00, 0x00, 0xFF );
+        SDL_RenderDrawRect( renderer, &enemy.destR );
+        SDL_SetRenderDrawColor( renderer, 0xFF, 0x00, 0x00, 0xFF );
+        SDL_RenderDrawRect( renderer, &player.destR );
+#endif
+        //Entity renders
+        SDL_RenderCopy(renderer, enemy.texture, NULL, &enemy.destR); // Depth 0
+        SDL_RenderCopy(renderer, player.texture, &player.srcR, &player.destR); // Depth 1
         SDL_RenderPresent(renderer);
     }
 
-    SDL_DestroyTexture(texture);
+    SDL_DestroyTexture(player.texture);
+    SDL_DestroyTexture(enemy.texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
 
     SDL_Quit();
-
     return 0;
 }
