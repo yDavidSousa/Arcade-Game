@@ -1,34 +1,13 @@
 #include <stdio.h>
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
-#include <malloc.h>
+#include <SDL.h>
+#include <input.h>
+#include <graphic.h>
+#include <collider.h>
 
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
 const int SPEED = 300;
 const int FPS = 60;
-const int FRAME_DELAY = 1000/60;
-
-//STRUCTURES
-
-typedef enum KEY_STATE {
-    NORMAL,
-    PRESSED,
-    RELEASED
-} KEY_STATE_T;
-
-typedef enum bool {
-    FALSE = 0,
-    TRUE = 1
-} bool_t;
-
-typedef struct input_state {
-    KEY_STATE_T up;
-    KEY_STATE_T down;
-    KEY_STATE_T left;
-    KEY_STATE_T right;
-    KEY_STATE_T esc;
-} input_state_t;
 
 typedef struct vector2 {
     float x, y;
@@ -42,112 +21,6 @@ typedef struct entity {
     SDL_Texture* texture;
 } entity_t;
 
-//FUNCTIONS
-
-void updateInput(input_state_t* inputState) {
-
-    SDL_Event event;
-    while(SDL_PollEvent(&event)) {
-        SDL_Scancode scanCode = event.key.keysym.scancode;
-
-        switch(event.type) {
-            case SDL_KEYDOWN:
-                if(scanCode == SDL_SCANCODE_ESCAPE) inputState->esc = PRESSED;
-                if(scanCode == SDL_SCANCODE_UP) inputState->up = PRESSED;
-                if(scanCode == SDL_SCANCODE_DOWN) inputState->down = PRESSED;
-                if(scanCode == SDL_SCANCODE_LEFT) inputState->left = PRESSED;
-                if(scanCode == SDL_SCANCODE_RIGHT) inputState->right = PRESSED;
-                break;
-            case SDL_KEYUP:
-                if(scanCode == SDL_SCANCODE_ESCAPE) inputState->esc = RELEASED;
-                if(scanCode == SDL_SCANCODE_UP) inputState->up = RELEASED;
-                if(scanCode == SDL_SCANCODE_DOWN) inputState->down = RELEASED;
-                if(scanCode == SDL_SCANCODE_LEFT) inputState->left = RELEASED;
-                if(scanCode == SDL_SCANCODE_RIGHT) inputState->right = RELEASED;
-                break;
-        }
-    }
-}
-
-void clean(SDL_Texture* texture, SDL_Renderer* renderer, SDL_Window* window, bool_t quit){
-    SDL_DestroyTexture(texture);
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-
-    if(quit) SDL_Quit();
-}
-
-SDL_Texture *loadTexture(SDL_Renderer* renderer, char path[]){
-    SDL_Surface* surface = IMG_Load(path);
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-    SDL_FreeSurface(surface);
-    return texture;
-};
-
-SDL_Rect *splitImage(SDL_Rect *rect, int column, int row) {
-
-    SDL_Rect *image = (SDL_Rect *) malloc((column * row) * sizeof(SDL_Rect));
-    int splitWidth = rect->w / column;
-    int splitHeight = rect->h / row;
-    int i = 0;
-    printf("SplitWidth: %d SplitHeight: %d\n", splitWidth, splitHeight);
-
-    for (int y = 0; y < row; ++y) {
-        for (int x = 0; x < column; ++x) {
-            (image + i)->x = splitWidth * x;
-            (image + i)->y = splitHeight * y;
-            (image + i)->w = splitWidth;
-            (image + i)->h = splitHeight;
-            printf("SplitImage: %d PositionX: %d PositionY: %d\n", i, (image + i)->x, (image + i)->y);
-            i++;
-        }
-    }
-
-    return image;
-}
-
-bool_t checkCollision(SDL_Rect object1, SDL_Rect object2){
-    if(object1.x + object1.w < object2.x || object1.x > object2.x + object2.w ||
-            object1.y + object1.h < object2.y || object1.y > object2.y + object2.h)
-        return FALSE;
-    else
-        return TRUE;
-}
-
-bool_t checkLeftCollision(SDL_Rect object1, SDL_Rect object2){
-    if(object1.x + object1.w < object2.x || object1.y + object1.h < object2.y || object1.y > object2.y + object2.h)
-        return FALSE;
-    else
-        return TRUE;
-}
-
-bool_t checkRightCollision(SDL_Rect object1, SDL_Rect object2){
-    if(object1.x > object2.x + object2.w || object1.y + object1.h < object2.y || object1.y > object2.y + object2.h)
-        return FALSE;
-    else
-        return TRUE;
-}
-
-bool_t checkTopCollision(SDL_Rect object1, SDL_Rect object2){
-    if(object1.y + object1.h < object2.y || object1.x + object1.w < object2.x || object1.x > object2.x + object2.w)
-        return FALSE;
-    else
-        return TRUE;
-}
-
-bool_t checkBottomCollision(SDL_Rect object1, SDL_Rect object2){
-    if(object1.y > object2.y + object2.h || object1.y + object1.h < object2.y || object1.y > object2.y + object2.h)
-        return FALSE;
-    else
-        return TRUE;
-}
-
-void destroyTextures(SDL_Texture *textures){
-    //int length = (int) sizeof (textures) / sizeof (SDL_Texture);
-}
-
-//MAIN FUNCTION
-
 int main(int argc, char* args[]){
     char gameTitle[] = "Game Window";
     SDL_Window* window = NULL;
@@ -160,9 +33,8 @@ int main(int argc, char* args[]){
     int close_requested = 0;
     int i = 0;
 
+    entity_t player, enemy;
     input_state_t inputState = {NORMAL, NORMAL, NORMAL, NORMAL, NORMAL};
-    entity_t player;
-    entity_t enemy;
 
     if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER) != 0) {
         printf("error initializing SDL: %s\n", SDL_GetError());
@@ -212,14 +84,8 @@ int main(int argc, char* args[]){
 
         //Collision detection
         SDL_SetTextureColorMod(player.texture, 255, 255, 255);
-        if(player.velocity.x > 0 && checkCollision(player.destR, enemy.destR)) {
-            player.velocity.x = 0;
+        if(boxCollision(player.destR, enemy.destR))
             SDL_SetTextureColorMod(player.texture, 255, 0, 0);
-        }
-        if(player.velocity.y > 0 && checkCollision(player.destR, enemy.destR)) {
-            player.velocity.y = 0;
-            SDL_SetTextureColorMod(player.texture, 255, 0, 0);
-        }
 
         //Update entity velocity
         player.position.x += player.velocity.x * deltaTime;
@@ -260,6 +126,9 @@ int main(int argc, char* args[]){
         SDL_RenderCopy(renderer, enemy.texture, NULL, &enemy.destR); // Depth 0
         SDL_RenderCopy(renderer, player.texture, &player.srcR, &player.destR); // Depth 1
         SDL_RenderPresent(renderer);
+
+        if(currentTime < FPS)
+            SDL_Delay(currentTime - prevTime);
     }
 
     SDL_DestroyTexture(player.texture);
