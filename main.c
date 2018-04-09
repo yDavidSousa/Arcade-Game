@@ -6,12 +6,15 @@
 #include <malloc.h>
 #include <mem.h>
 
+const int GRAVITY = 20;
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
 const int SPEED = 300;
 const int FPS = 60;
 
 typedef struct animation{
+    int id;
+    char name[20];
     SDL_Rect *sprites;
     int frame;
     float duration;
@@ -25,14 +28,14 @@ typedef struct vector2 {
 } vector2_t;
 
 typedef struct entity {
-    animation_t currentAnimation;
     vector2_t position;
     vector2_t velocity;
-    SDL_Rect srcR;
-    SDL_Rect destR;
+    SDL_Rect srcR, desR;
     SDL_Texture* texture;
+    SDL_RendererFlip flip;
     SDL_Rect *spriteSheet;
-
+    animation_t animations[5];
+    animation_t *currentAnimation;
 } entity_t;
 
 SDL_Rect *slice_array(SDL_Rect *array, int start, int end) {
@@ -45,10 +48,11 @@ SDL_Rect *slice_array(SDL_Rect *array, int start, int end) {
     return slice;
 }
 
-animation_t newAnimation(SDL_Rect *spriteSheet, int startFrame, int endFrame,float duration, bool_t onLoop){
+animation_t newAnimation(char name[], SDL_Rect *spriteSheet, int startFrame, int endFrame,float duration, bool_t onLoop){
     animation_t resultAnimation;
 
     resultAnimation.sprites = slice_array(spriteSheet, startFrame, endFrame);
+    strcpy(resultAnimation.name, name);
     resultAnimation.count = 0;
     resultAnimation.frame = -1;
     resultAnimation.length = endFrame - startFrame + 1;
@@ -58,7 +62,21 @@ animation_t newAnimation(SDL_Rect *spriteSheet, int startFrame, int endFrame,flo
     return resultAnimation;
 }
 
-void playAnimation(entity_t *entity, animation_t *animation, float dt){
+void playAnimation(entity_t *entity, char name[]){
+    for (int i = 0; i < 5; ++i) {
+        if(strcmp(name, entity->animations[i].name) != 0)
+            continue;
+
+        if(strcmp(entity->currentAnimation->name, entity->animations[i].name) == 0)
+            break;
+
+        entity->currentAnimation = &(entity->animations[i]);
+        entity->currentAnimation->count = entity->currentAnimation->duration;
+        entity->currentAnimation->frame = 0;
+    }
+}
+
+void updateAnimation(entity_t *entity, animation_t *animation, float dt){
     animation->count += dt;
     if(animation->count >= animation->duration){
         animation->count = 0;
@@ -72,7 +90,7 @@ void playAnimation(entity_t *entity, animation_t *animation, float dt){
 }
 
 int main(int argc, char* args[]){
-    char gameTitle[] = "Game Window";
+    char gameTitle[] = "Arcade Game";
     SDL_Window* window = NULL;
     SDL_Renderer* renderer = NULL;
     int close_requested = 0;
@@ -93,23 +111,29 @@ int main(int argc, char* args[]){
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
     //Player Data
-    player.texture = loadTexture(renderer, "content/oldHero.png");
+    int isGround = 0;
+    player.texture = loadTexture(renderer, "content/hero.png");
     SDL_QueryTexture(player.texture, NULL, NULL, &player.srcR.w, &player.srcR.h);
-    player.destR.w = 16 * 4;
-    player.destR.h = 18 * 4;
-    player.position.x = 40;
-    player.position.y = (SCREEN_HEIGHT - player.destR.h);
-
-    player.spriteSheet = splitImage(&player.srcR, 6, 1);
-    player.currentAnimation = newAnimation(player.spriteSheet, 0, 5, 0.1f, TRUE);
+    player.desR.w = player.desR.h = 16 * 4;
+    player.position.x = player.position.y = 0;
+    player.spriteSheet = splitImage(&player.srcR, 6, 5);
+    player.animations[0] = newAnimation("idle", player.spriteSheet, 0, 3, 0.2f, TRUE);
+    player.animations[1] = newAnimation("walking", player.spriteSheet, 6, 11, 0.1f, TRUE);
+    player.animations[2] = newAnimation("swimming", player.spriteSheet, 18, 23, 0.1f, TRUE);
+    player.animations[3] = newAnimation("jumping", player.spriteSheet, 12, 12, 0.1f, FALSE);
+    player.animations[4] = newAnimation("falling", player.spriteSheet, 13, 13, 0.1f, FALSE);
+    player.currentAnimation = &(player.animations[0]);
 
     //Enemy Data
-    enemy.texture = loadTexture(renderer, "content/image.png");
-    SDL_QueryTexture(enemy.texture, NULL, NULL, &enemy.destR.w, &enemy.destR.h);
-    enemy.destR.w /= 4;
-    enemy.destR.h /= 4;
-    enemy.destR.x = (SCREEN_WIDTH - enemy.destR.w);
-    enemy.destR.y = (SCREEN_HEIGHT - enemy.destR.h);
+    enemy.texture = loadTexture(renderer, "content/hero.png");
+    SDL_QueryTexture(enemy.texture, NULL, NULL, &enemy.srcR.w, &enemy.srcR.h);
+    enemy.desR.w = enemy.desR.h = 16 * 4;
+    enemy.desR.x = (SCREEN_WIDTH / 2);
+    enemy.desR.y = (SCREEN_HEIGHT - enemy.desR.h);
+    enemy.spriteSheet = splitImage(&enemy.srcR, 6, 5);
+    enemy.animations[0] = newAnimation("swimming", enemy.spriteSheet, 18, 23, 0.1f, TRUE);
+    enemy.currentAnimation = &(enemy.animations[0]);
+    enemy.flip = SDL_FLIP_HORIZONTAL;
 
     while(!close_requested) {
         //Time loop
@@ -119,53 +143,69 @@ int main(int argc, char* args[]){
 
         updateInput(&inputState);
 
-        player.velocity.x = player.velocity.y = 0;
+        player.velocity.x = 0;
 
         //Check inputs
         if(inputState.esc == PRESSED) close_requested = 1;
-        if(inputState.up == PRESSED) player.velocity.y += -SPEED;
-        if(inputState.down == PRESSED) player.velocity.y += SPEED;
         if(inputState.left == PRESSED) player.velocity.x += -SPEED;
         if(inputState.right == PRESSED) player.velocity.x += SPEED;
+        if(inputState.up == PRESSED && isGround) {
+            player.velocity.y = -9;
+            isGround = 0;
+        }
+
+        //Update entity velocity
+        player.position.x += player.velocity.x * deltaTime;
+        player.velocity.y+= + GRAVITY * deltaTime;
+        player.position.y += player.velocity.y;
 
         //Collision detection
-        if(boxCollision(player.destR, enemy.destR))
+        if(boxCollision(player.desR, enemy.desR))
             SDL_SetTextureColorMod(player.texture, 255, 0, 0);
         else
             SDL_SetTextureColorMod(player.texture, 255, 255, 255);
 
-        //Update entity velocity
-        player.position.x += player.velocity.x * deltaTime;
-        player.position.y += player.velocity.y * deltaTime;
-
         //Window collision detection
         if(player.position.x <= 0) player.position.x = 0;
         if(player.position.y <= 0) player.position.y = 0;
-        if(player.position.x >= SCREEN_WIDTH - player.destR.w) player.position.x = SCREEN_WIDTH - player.destR.w;
-        if(player.position.y >= SCREEN_HEIGHT - player.destR.h) player.position.y = SCREEN_HEIGHT - player.destR.h;
+        if(player.position.x >= SCREEN_WIDTH - player.desR.w) player.position.x = SCREEN_WIDTH - player.desR.w;
+        if(player.position.y >= SCREEN_HEIGHT - player.desR.h) {
+            player.position.y = SCREEN_HEIGHT - player.desR.h;
+            player.velocity.y = 0;
+            isGround = 1;
+        }
 
         //Apply animation
-        playAnimation(&player, &player.currentAnimation, deltaTime);
+        if(player.velocity.x != 0){
+            playAnimation(&player, "walking");
+            player.flip = player.velocity.x < 0 ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+        }
+        if(player.velocity.y != 0) player.velocity.y < 0 ? playAnimation(&player, "jumping") : playAnimation(&player, "falling");
+        if(player.velocity.x == 0 && player.velocity.y == 0) playAnimation(&player, "idle");
+
+        //Update animations
+        updateAnimation(&player, player.currentAnimation, deltaTime);
+        updateAnimation(&enemy, enemy.currentAnimation, deltaTime);
 
         //Update entity position
-        player.destR.x = (int) player.position.x;
-        player.destR.y = (int) player.position.y;
+        player.desR.x = (int) player.position.x;
+        player.desR.y = (int) player.position.y;
 
-#if DEBUG
         //Set background color
         SDL_SetRenderDrawColor( renderer, 0xFF, 0xFF, 0xFF, 0xFF );
         SDL_RenderClear(renderer);
 
+#if DEBUG
         //Box collider render
         SDL_SetRenderDrawColor( renderer, 0xFF, 0x00, 0x00, 0xFF );
-        SDL_RenderDrawRect( renderer, &enemy.destR );
+        SDL_RenderDrawRect( renderer, &enemy.desR );
         SDL_SetRenderDrawColor( renderer, 0xFF, 0x00, 0x00, 0xFF );
-        SDL_RenderDrawRect( renderer, &player.destR );
+        SDL_RenderDrawRect( renderer, &player.desR );
 #endif
 
         //Entity renders
-        SDL_RenderCopy(renderer, enemy.texture, NULL, &enemy.destR); // Depth 0
-        SDL_RenderCopy(renderer, player.texture, &player.srcR, &player.destR); // Depth 1
+        SDL_RenderCopyEx(renderer, enemy.texture, &enemy.srcR, &enemy.desR, 0, NULL, enemy.flip);
+        SDL_RenderCopyEx(renderer, player.texture, &player.srcR, &player.desR, 0, NULL, player.flip);
         SDL_RenderPresent(renderer);
 
         if(currentTime < FPS)

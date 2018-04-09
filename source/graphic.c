@@ -17,6 +17,7 @@ SDL_Rect *splitImage(SDL_Rect *rect, int column, int row) {
     int splitHeight = rect->h / row;
     int i = 0;
 #if DEBUG
+    printf("RectWidth: %d RectHeight: %d\n", rect->w, rect->h);
     printf("SplitWidth: %d SplitHeight: %d\n", splitWidth, splitHeight);
 #endif
 
