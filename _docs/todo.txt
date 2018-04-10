@@ -1,0 +1,39 @@
+better collider system
+
+make a map collision
+
+make handler collision
+
+refactor collider system
+
+make a better entity and component system
+
+better input system (implement joystick input)
+
+separate components and refactor whatever it takes
+
+add text system
+
+add audio system
+
+file loading
+
+game state
+
+something like room/scene/world
+
+try to do particles
+
+try to do like something UI
+
+manage window
+
+better animation system
+
+try to do tween
+
+make a camera
+
+make a poller
+
+make a save/load system
