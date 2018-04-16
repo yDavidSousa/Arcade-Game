@@ -171,17 +171,6 @@ int main(int argc, char* args[]){
 
         player.velocity.x = 0;
 
-        //Collision detection
-        box_collider_t minkowskiDifference = minkowski_difference(enemy.boxcollider, player.boxcollider);
-        if(boxCollision(player.boxcollider, enemy.boxcollider)){
-            vector2_t penetrationVector = closest_point_bounds_to_point(minkowskiDifference, vectorZero);
-            player.position.x += (int)penetrationVector.x;
-            player.position.y += (int)penetrationVector.y;
-            SDL_SetTextureColorMod(player.texture, 255, 0, 0);
-        }
-        else
-            SDL_SetTextureColorMod(player.texture, 255, 255, 255);
-
         //Check inputs
         if(inputState.left == PRESSED)
             player.velocity.x += -SPEED;
@@ -198,6 +187,24 @@ int main(int argc, char* args[]){
         player.position.x += player.velocity.x * deltaTime;
         player.velocity.y += GRAVITY * deltaTime;
         player.position.y += player.velocity.y * deltaTime;
+        player.boxcollider.center.x = player.position.x + player.boxcollider.extents.x;
+        player.boxcollider.center.y = player.position.y + player.boxcollider.extents.y;
+
+        //Update box colliders
+        update_boxcollider(&player.boxcollider);
+        update_boxcollider(&enemy.boxcollider);
+
+        //Collision detection
+        box_collider_t minkowskiDifference = minkowski_difference(enemy.boxcollider, player.boxcollider);
+        if(boxCollision(player.boxcollider, enemy.boxcollider)){
+            vector2_t penetrationVector = closest_point_bounds_to_point(minkowskiDifference, vectorZero);
+            player.position.x += penetrationVector.x;
+            player.position.y += penetrationVector.y;
+            SDL_SetTextureColorMod(player.texture, 255, 0, 0);
+        }
+        else
+            SDL_SetTextureColorMod(player.texture, 255, 255, 255);
+
 
         //Window collision detection
         if(player.position.x <= 0)
@@ -230,16 +237,14 @@ int main(int argc, char* args[]){
         //Update entity position
         player.desR.x = (int) player.position.x;
         player.desR.y = (int) player.position.y;
-        player.boxcollider.center.x = player.desR.x + player.boxcollider.extents.x;
-        player.boxcollider.center.y = player.desR.y + player.boxcollider.extents.y;
 
         //Update animations
         updateAnimation(&player.srcR, player.currentAnimation, deltaTime);
         updateAnimation(&enemy.srcR, enemy.currentAnimation, deltaTime);
 
         //Update box colliders
-        update_boxcollider(&player.boxcollider);
-        update_boxcollider(&enemy.boxcollider);
+        //update_boxcollider(&player.boxcollider);
+        //update_boxcollider(&enemy.boxcollider);
 
         //Set background color
         SDL_SetRenderDrawColor( renderer, 0xFF, 0xFF, 0xFF, 0xFF );
