@@ -1,0 +1,3 @@
+For a good article about Minkowski sums/differences, see:
+- https://hamaluik.com/posts/simple-aabb-collision-using-minkowski-difference/
+- https://hamaluik.com/posts/swept-aabb-collision-using-minkowski-difference/

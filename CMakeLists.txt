@@ -16,7 +16,7 @@ set(deps_lib_dir "${CMAKE_SOURCE_DIR}/deps/lib/${plataform}")
 set(libs "-lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer")
 
 include_directories("include;${deps_include_dir}")
-set(SOURCE_FILES include/status.h source/status.c include/collider.h source/collider.c include/input.h source/input.c include/graphic.h source/graphic.c main.c)
+set(SOURCE_FILES include/status.h source/status.c include/vector2.h source/vector2.c include/collider.h source/collider.c include/input.h source/input.c include/graphic.h source/graphic.c main.c)
 add_executable(Arcade-Game ${SOURCE_FILES})
 target_link_libraries(Arcade-Game ${libs})
 
