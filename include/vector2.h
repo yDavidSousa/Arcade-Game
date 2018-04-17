@@ -3,6 +3,11 @@ typedef struct vector2 {
     float x, y;
 } vector2_t;
 
+static const vector2_t VECTOR_ONE = {1,1};
+static const vector2_t VECTOR_RIGHT = {1,0};
+static const vector2_t VECTOR_UP = {0,1};
+static const vector2_t VECTOR_ZERO = {0,0};
+
 vector2_t vector2_sum(vector2_t a, vector2_t b);
 
 vector2_t vector2_subtract(vector2_t a, vector2_t b);

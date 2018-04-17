@@ -3,8 +3,7 @@
 #include <input.h>
 #include <graphic.h>
 #include <collider.h>
-#include <malloc.h>
-#include <mem.h>
+#include <animator.h>
 
 const int GRAVITY = 800;
 const int SCREEN_WIDTH = 640;
@@ -12,80 +11,16 @@ const int SCREEN_HEIGHT = 480;
 const int SPEED = 300;
 const int FPS = 60;
 
-//TODO: Create a animator struct to save the currentAnimation and animations
-typedef struct animation{
-    char name[20];
-    SDL_Rect *sprites;
-    int frame;
-    float duration;
-    float count;
-    float length;
-    bool_t onLoop;
-} animation_t;
-
 typedef struct entity {
     vector2_t position;
-    vector2_t velocity;
     SDL_Rect srcR, desR;
-    box_collider_t boxcollider;
     SDL_Texture* texture;
     SDL_RendererFlip flip;
     SDL_Rect *spriteSheet;
-    animation_t animations[5];
-    animation_t *currentAnimation;
+    vector2_t velocity;
+    box_collider_t boxcollider;
+    animator_t animator;
 } entity_t;
-
-//TODO: Create a c/h file for animation component
-SDL_Rect *slice_array(SDL_Rect *array, int start, int end) {
-    int numElements = (end - start + 1);
-    size_t numBytes = sizeof(SDL_Rect) * numElements;
-
-    SDL_Rect *slice = malloc(numBytes);
-    memcpy(slice, array + start, numBytes);
-
-    return slice;
-}
-
-animation_t newAnimation(char name[], SDL_Rect *spriteSheet, int startFrame, int endFrame,float duration, bool_t onLoop){
-    animation_t resultAnimation;
-
-    resultAnimation.sprites = slice_array(spriteSheet, startFrame, endFrame);
-    strcpy(resultAnimation.name, name);
-    resultAnimation.count = 0;
-    resultAnimation.frame = -1;
-    resultAnimation.length = endFrame - startFrame + 1;
-    resultAnimation.duration = duration;
-    resultAnimation.onLoop = onLoop;
-
-    return resultAnimation;
-}
-
-void playAnimation(entity_t *entity, char name[]){
-    for (int i = 0; i < 5; ++i) {
-        if(strcmp(name, entity->animations[i].name) != 0)
-            continue;
-
-        if(strcmp(entity->currentAnimation->name, entity->animations[i].name) == 0)
-            break;
-
-        entity->currentAnimation = &(entity->animations[i]);
-        entity->currentAnimation->count = entity->currentAnimation->duration;
-        entity->currentAnimation->frame = 0;
-    }
-}
-
-void updateAnimation(SDL_Rect *srcR, animation_t *animation, float dt){
-    animation->count += dt;
-    if(animation->count >= animation->duration){
-        animation->count = 0;
-        animation->frame++;
-
-        if(animation->frame >= animation->length)
-            animation->frame = (animation->onLoop) ? 0 : animation->frame-1;
-
-        *srcR = animation->sprites[animation->frame];
-    }
-}
 
 int main(int argc, char* args[]){
     char gameTitle[] = "Arcade Game";
@@ -99,7 +34,6 @@ int main(int argc, char* args[]){
 
     entity_t player, enemy;
     input_state_t inputState = {};
-    const vector2_t vectorZero = {0,0};
 
     if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER) != 0) {
         printf("error initializing SDL: %s\n", SDL_GetError());
@@ -109,7 +43,7 @@ int main(int argc, char* args[]){
     window = SDL_CreateWindow(gameTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, 0);
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
-    //Player Data
+    /* Player Load Data */
     int isGround = 0;
     player.texture = loadTexture(renderer, "content/hero.png");
     SDL_QueryTexture(player.texture, NULL, NULL, &player.srcR.w, &player.srcR.h);
@@ -123,12 +57,12 @@ int main(int argc, char* args[]){
     player.spriteSheet = splitImage(&player.srcR, 6, 5);
 
     //Animation
-    player.animations[0] = newAnimation("idle", player.spriteSheet, 0, 3, 0.2f, TRUE);
-    player.animations[1] = newAnimation("walking", player.spriteSheet, 6, 11, 0.1f, TRUE);
-    player.animations[2] = newAnimation("swimming", player.spriteSheet, 18, 23, 0.1f, TRUE);
-    player.animations[3] = newAnimation("jumping", player.spriteSheet, 12, 12, 0.1f, FALSE);
-    player.animations[4] = newAnimation("falling", player.spriteSheet, 13, 13, 0.1f, FALSE);
-    player.currentAnimation = &(player.animations[0]);
+    player.animator.animations[0] = newAnimation("idle", player.spriteSheet, 0, 3, 0.2f, TRUE);
+    player.animator.animations[1] = newAnimation("walking", player.spriteSheet, 6, 11, 0.1f, TRUE);
+    player.animator.animations[2] = newAnimation("swimming", player.spriteSheet, 18, 23, 0.1f, TRUE);
+    player.animator.animations[3] = newAnimation("jumping", player.spriteSheet, 12, 12, 0.1f, FALSE);
+    player.animator.animations[4] = newAnimation("falling", player.spriteSheet, 13, 13, 0.1f, FALSE);
+    player.animator.currentAnimation = getAnimation(&player.animator, "idle");
 
     //Collider
     player.boxcollider.extents.x = player.desR.w / 2;
@@ -136,23 +70,19 @@ int main(int argc, char* args[]){
     player.boxcollider.center.x = player.desR.x + player.boxcollider.extents.x;
     player.boxcollider.center.y = player.desR.y + player.boxcollider.extents.y;
 
-    //Enemy Data
+    /* Enemy Load Data */
     enemy.texture = loadTexture(renderer, "content/hero.png");
     SDL_QueryTexture(enemy.texture, NULL, NULL, &enemy.srcR.w, &enemy.srcR.h);
-
     //Sprite Rect
     enemy.desR.w = enemy.desR.h = 16 * 4;
     enemy.desR.x = (SCREEN_WIDTH / 2 - enemy.desR.w /2);
     enemy.desR.y = (SCREEN_HEIGHT - enemy.desR.h);
-
     //Graphic
     enemy.spriteSheet = splitImage(&enemy.srcR, 6, 5);
     enemy.flip = SDL_FLIP_HORIZONTAL;
-
     //Animation
-    enemy.animations[0] = newAnimation("swimming", enemy.spriteSheet, 18, 23, 0.1f, TRUE);
-    enemy.currentAnimation = &(enemy.animations[0]);
-
+    enemy.animator.animations[0] = newAnimation("swimming", enemy.spriteSheet, 18, 23, 0.1f, TRUE);
+    enemy.animator.currentAnimation = getAnimation(&enemy.animator, "swimming");
     //Collider
     enemy.boxcollider.extents.x = enemy.desR.w / 2;
     enemy.boxcollider.extents.y = enemy.desR.h / 2;
@@ -179,7 +109,7 @@ int main(int argc, char* args[]){
             player.velocity.x += SPEED;
 
         if(inputState.up == PRESSED && isGround) {
-            player.velocity.y = -500;
+            player.velocity.y = -460;
             isGround = 0;
         }
 
@@ -187,6 +117,7 @@ int main(int argc, char* args[]){
         player.position.x += player.velocity.x * deltaTime;
         player.velocity.y += GRAVITY * deltaTime;
         player.position.y += player.velocity.y * deltaTime;
+
         player.boxcollider.center.x = player.position.x + player.boxcollider.extents.x;
         player.boxcollider.center.y = player.position.y + player.boxcollider.extents.y;
 
@@ -197,14 +128,17 @@ int main(int argc, char* args[]){
         //Collision detection
         box_collider_t minkowskiDifference = minkowski_difference(enemy.boxcollider, player.boxcollider);
         if(boxCollision(player.boxcollider, enemy.boxcollider)){
-            vector2_t penetrationVector = closest_point_bounds_to_point(minkowskiDifference, vectorZero);
-            player.position.x += penetrationVector.x;
-            player.position.y += penetrationVector.y;
+            vector2_t penetrationVector = closest_point_bounds_to_point(minkowskiDifference, VECTOR_ZERO);
+            player.position = vector2_sum(player.position, penetrationVector);
+            if(penetrationVector.y < 0){
+                player.velocity.y = 0;
+                isGround = 1;
+            }
+
             SDL_SetTextureColorMod(player.texture, 255, 0, 0);
         }
         else
             SDL_SetTextureColorMod(player.texture, 255, 255, 255);
-
 
         //Window collision detection
         if(player.position.x <= 0)
@@ -224,27 +158,23 @@ int main(int argc, char* args[]){
 
         //Apply animation
         if(player.velocity.x != 0){
-            playAnimation(&player, "walking");
+            playAnimation(&player.animator, "walking");
             player.flip = player.velocity.x < 0 ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
         }
 
         if(player.velocity.y != 0)
-            player.velocity.y < 0 ? playAnimation(&player, "jumping") : playAnimation(&player, "falling");
+            player.velocity.y < 0 ? playAnimation(&player.animator, "jumping") : playAnimation(&player.animator, "falling");
 
         if(player.velocity.x == 0 && player.velocity.y == 0)
-            playAnimation(&player, "idle");
+            playAnimation(&player.animator, "idle");
 
         //Update entity position
         player.desR.x = (int) player.position.x;
         player.desR.y = (int) player.position.y;
 
         //Update animations
-        updateAnimation(&player.srcR, player.currentAnimation, deltaTime);
-        updateAnimation(&enemy.srcR, enemy.currentAnimation, deltaTime);
-
-        //Update box colliders
-        //update_boxcollider(&player.boxcollider);
-        //update_boxcollider(&enemy.boxcollider);
+        updateAnimation(&player.srcR, &player.animator, deltaTime);
+        updateAnimation(&enemy.srcR, &enemy.animator, deltaTime);
 
         //Set background color
         SDL_SetRenderDrawColor( renderer, 0xFF, 0xFF, 0xFF, 0xFF );
@@ -254,7 +184,6 @@ int main(int argc, char* args[]){
         //Box colliders render
         draw_box(player.boxcollider, renderer);
         draw_box(enemy.boxcollider, renderer);
-        draw_solid_box(minkowskiDifference, renderer);
 #endif
 
         //Entity renders
