@@ -3,14 +3,14 @@
 #include <SDL_image.h>
 #include <malloc.h>
 
-SDL_Texture *loadTexture(SDL_Renderer* renderer, char path[]){
+SDL_Texture *load_texture(SDL_Renderer *renderer, char *path){
     SDL_Surface* surface = IMG_Load(path);
     SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
     SDL_FreeSurface(surface);
     return texture;
 }
 
-SDL_Rect *splitImage(SDL_Rect *rect, int column, int row) {
+SDL_Rect *split_image(SDL_Rect *rect, int column, int row) {
 
     SDL_Rect *image = (SDL_Rect *) malloc((column * row) * sizeof(SDL_Rect));
     int splitWidth = rect->w / column;

@@ -15,10 +15,10 @@ typedef struct animator{
     animation_t *currentAnimation;
 } animator_t;
 
-animation_t newAnimation(char name[], SDL_Rect *spriteSheet, int startFrame, int endFrame,float duration, int onLoop);
+animation_t animation_new(char *name, SDL_Rect *spriteSheet, int startFrame, int endFrame, float duration, int onLoop);
 
-animation_t *getAnimation(struct animator *animator, char name[]);
+animation_t *animation_get(struct animator *animator, char *name);
 
-void playAnimation(animator_t *animator, char name[]);
+void animation_play(animator_t *animator, char *name);
 
-void updateAnimation(SDL_Rect *srcR, animator_t *animator, float dt);
+void animation_update(SDL_Rect *srcR, animator_t *animator, float dt);

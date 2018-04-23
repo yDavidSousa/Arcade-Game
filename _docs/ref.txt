@@ -1,3 +1,16 @@
 For a good article about Minkowski sums/differences, see:
 - https://hamaluik.com/posts/simple-aabb-collision-using-minkowski-difference/
 - https://hamaluik.com/posts/swept-aabb-collision-using-minkowski-difference/
+
+load objects and levels from XML-files. Level XML-file looks like this:
+<map>
+   <tile obj="ground" x="0" y="555" />
+   <tile obj="ground" x="16" y="555" />
+   <tile obj="ground" x="32" y="555" />
+   ...
+</map>
+All objects have a 2d-vector "position" storing their current location on the screen.
+
+Load scene - Allocate all datas in scene
+Unload scene - Deallocate all datas in scene
+Entity state is active variable.

@@ -16,23 +16,23 @@ vector2_t vector2_multiply(vector2_t a, vector2_t b){
     return result;
 }
 
-vector2_t vector2_multiply_scale(vector2_t a, float b){
+vector2_t vector2_multiply_scalar(vector2_t a, float b){
     vector2_t result = {a.x * b, a.y * b};
     return result;
 }
 
-vector2_t divideByScalar(vector2_t a, float b){
+vector2_t vector2_divide_scalar(vector2_t a, float b){
     vector2_t result = {a.x / b, a.y / b};
     return result;
 }
 
-float vector2_magnitude(vector2_t a){
-    return (float)sqrt(pow(a.x, 2) + pow(a.y, 2));
+float vector2_magnitude(vector2_t value){
+    return (float)sqrt(pow(value.x, 2) + pow(value.y, 2));
 }
 
-vector2_t vector2_normalize(vector2_t a){
-    float magnitude = vector2_magnitude(a);
-    vector2_t result = {a.x / magnitude, a.y / magnitude};
+vector2_t vector2_normalize(vector2_t value){
+    float magnitude = vector2_magnitude(value);
+    vector2_t result = {value.x / magnitude, value.y / magnitude};
     return result;
 }
 

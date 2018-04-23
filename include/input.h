@@ -13,4 +13,4 @@ typedef struct input_state {
     KEY_STATE_T esc;
 } input_state_t;
 
-void updateInput(input_state_t* inputState);
+void input_update(input_state_t *input);

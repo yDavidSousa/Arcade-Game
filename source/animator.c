@@ -1,19 +1,8 @@
 #include <animator.h>
-#include <malloc.h>
+#include <util.h>
 #include <mem.h>
 
-//TODO: Remove this after
-SDL_Rect *slice_array(SDL_Rect *array, int start, int end) {
-    int numElements = (end - start + 1);
-    size_t numBytes = sizeof(SDL_Rect) * numElements;
-
-    SDL_Rect *slice = malloc(numBytes);
-    memcpy(slice, array + start, numBytes);
-
-    return slice;
-}
-
-animation_t newAnimation(char name[], SDL_Rect *spriteSheet, int startFrame, int endFrame,float duration, int onLoop){
+animation_t animation_new(char *name, SDL_Rect *spriteSheet, int startFrame, int endFrame, float duration, int onLoop){
     animation_t resultAnimation;
 
     resultAnimation.sprites = slice_array(spriteSheet, startFrame, endFrame);
@@ -27,7 +16,7 @@ animation_t newAnimation(char name[], SDL_Rect *spriteSheet, int startFrame, int
     return resultAnimation;
 }
 
-animation_t *getAnimation(struct animator *animator, char name[]){
+animation_t *animation_get(struct animator *animator, char *name){
     for (int i = 0; i < 5; ++i) {
         if(strcmp(name, animator->animations[i].name) != 0)
             continue;
@@ -36,7 +25,7 @@ animation_t *getAnimation(struct animator *animator, char name[]){
     }
 }
 
-void playAnimation(animator_t *animator, char name[]){
+void animation_play(animator_t *animator, char *name){
     for (int i = 0; i < 5; ++i) {
         if(strcmp(name, animator->animations[i].name) != 0)
             continue;
@@ -50,7 +39,7 @@ void playAnimation(animator_t *animator, char name[]){
     }
 }
 
-void updateAnimation(SDL_Rect *srcR, animator_t *animator, float dt){
+void animation_update(SDL_Rect *srcR, animator_t *animator, float dt){
     animator->currentAnimation->count += dt;
     if(animator->currentAnimation->count >= animator->currentAnimation->duration){
         animator->currentAnimation->count = 0;
