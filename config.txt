@@ -1,0 +1,12 @@
+author David Sousa
+version 0.1
+
+title Arcade Game
+icon content/image
+fullscreen false
+resizable false
+borderless false
+width 960 //640
+height 720 //360
+//x 0
+//y 0

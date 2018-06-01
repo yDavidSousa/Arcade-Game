@@ -1,13 +1,11 @@
 #include <stdio.h>
 #include <SDL.h>
+#include <string.h>
+
 #include <input.h>
 #include <graphic.h>
 #include <collider.h>
 #include <animator.h>
-
-const char GAME_TITLE[] = "Arcade Game";
-const int SCREEN_WIDTH = 640;
-const int SCREEN_HEIGHT = 480;
 
 const int GRAVITY = 800;
 const int SPEED = 300;
@@ -21,6 +19,20 @@ typedef enum player_state {
     FALLING
 } player_state_t;
 
+typedef struct window {
+    char title[256];
+    char icon[256];
+    int width, height;
+    int x, y;
+    Uint32 flags;
+} window_t;
+
+typedef struct config {
+    char author[256];
+    char version[256];
+    window_t window;
+} config_t;
+
 typedef struct entity {
     vector2_t position;
     SDL_Rect srcR, desR;
@@ -32,9 +44,100 @@ typedef struct entity {
     animator_t animator;
 } entity_t;
 
+void init_default_config(config_t *config){
+    strcpy(config->author, "unknown");
+    strcpy(config->version, "0.0");
+
+    strcpy(config->window.title, "None Title");
+    config->window.width = 640;
+    config->window.height = 480;
+    config->window.x = SDL_WINDOWPOS_CENTERED;
+    config->window.y = SDL_WINDOWPOS_CENTERED;
+    config->window.flags = 0;
+}
+
+void read_config_file(char *path, config_t *config){
+    FILE *file = fopen(path, "r");
+
+    if(!file){
+        printf("Couldn't open file\n");
+        return;
+    }
+
+    char buffer[256] = {};
+    while(!feof(file)){
+        fscanf(file, "%s", buffer);
+
+        if(strcmp(buffer, "author") == 0){
+            fscanf(file, " %[^\n]s", config->author);
+            continue;
+        }
+        if(strcmp(buffer, "version") == 0){
+            fscanf(file, "%s", config->version);
+            continue;
+        }
+        if(strcmp(buffer, "title") == 0){
+            fscanf(file, " %[^\n]s", config->window.title);
+            continue;
+        }
+        if(strcmp(buffer, "icon") == 0){
+            fscanf(file, "%s", config->window.icon);
+            continue;
+        }
+        if(strcmp(buffer, "fullscreen") == 0){
+            fscanf(file, "%s", buffer);
+
+            if(strcmp(buffer, "true") == 0){
+                config->window.flags |= SDL_WINDOW_FULLSCREEN;
+            }
+            continue;
+        }
+        if(strcmp(buffer, "resizable") == 0){
+            fscanf(file, "%s", buffer);
+
+            if(strcmp(buffer, "true") == 0){
+                config->window.flags |= SDL_WINDOW_RESIZABLE;
+            }
+            continue;
+        }
+        if(strcmp(buffer, "borderless") == 0){
+            fscanf(file, "%s", buffer);
+
+            if(strcmp(buffer, "true") == 0){
+                config->window.flags |= SDL_WINDOW_BORDERLESS;
+            }
+            continue;
+        }
+        if(strcmp(buffer, "width") == 0){
+            fscanf(file, "%d", &config->window.width);
+            continue;
+        }
+        if(strcmp(buffer, "height") == 0){
+            fscanf(file, "%d", &config->window.height);
+            continue;
+        }
+        if(strcmp(buffer, "x") == 0){
+            fscanf(file, "%d", &config->window.x);
+            continue;
+        }
+        if(strcmp(buffer, "y") == 0){
+            fscanf(file, "%d", &config->window.y);
+            continue;
+        }
+    }
+
+    fclose(file);
+}
+
+void pre_config_window(SDL_Window *window,SDL_Renderer *renderer, config_t *config){
+    init_default_config(config);
+    read_config_file("../config.txt", config);
+}
+
 int main(int argc, char* args[]){
     SDL_Window* window = NULL;
     SDL_Renderer* renderer = NULL;
+    config_t *config;
     int quit = 0;
 
     if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER) != 0) {
@@ -42,7 +145,16 @@ int main(int argc, char* args[]){
         return 1;
     }
 
-    window = SDL_CreateWindow(GAME_TITLE, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, 0);
+    pre_config_window(window, renderer, config);
+    window = SDL_CreateWindow(
+            config->window.title,
+            config->window.x,
+            config->window.y,
+            config->window.width,
+            config->window.height,
+            config->window.flags
+    );
+
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 
     int prevTime = 0;
@@ -73,8 +185,8 @@ int main(int argc, char* args[]){
     enemy.texture = load_texture(renderer, "content/hero.png");
     SDL_QueryTexture(enemy.texture, NULL, NULL, &enemy.srcR.w, &enemy.srcR.h);
     enemy.desR.w = enemy.desR.h = 16 * 4;
-    enemy.position.x = enemy.desR.x = (SCREEN_WIDTH / 2 - enemy.desR.w /2);
-    enemy.position.y = enemy.desR.y = (SCREEN_HEIGHT - enemy.desR.h);
+    enemy.position.x = enemy.desR.x = (config->window.width / 2 - enemy.desR.w /2);
+    enemy.position.y = enemy.desR.y = (config->window.height - enemy.desR.h);
     enemy.spriteSheet = split_image(&enemy.srcR, 6, 5);
     enemy.flip = SDL_FLIP_HORIZONTAL;
     enemy.animator.animations[0] = animation_new("swimming", enemy.spriteSheet, 18, 23, 0.1f, TRUE);
@@ -95,6 +207,13 @@ int main(int argc, char* args[]){
         if(inputState.esc == PRESSED) quit = 1;
         if(inputState.left == PRESSED) player.velocity.x += -SPEED;
         if(inputState.right == PRESSED) player.velocity.x += SPEED;
+        if(inputState.down == PRESSED){
+
+            //SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
+            //SDL_SetWindowSize(window, SCREEN_WIDTH * 2, SCREEN_HEIGHT * 2);
+            //SDL_RenderSetLogicalSize(renderer, SCREEN_WIDTH * 2, SCREEN_HEIGHT * 2);
+            //SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+        }
         if(inputState.up == PRESSED && isGround) {
             player.velocity.y = -420;
             isGround = 0;
@@ -128,11 +247,11 @@ int main(int argc, char* args[]){
         if(player.position.y <= 0)
             player.position.y = 0;
 
-        if(player.position.x >= SCREEN_WIDTH - player.desR.w)
-            player.position.x = SCREEN_WIDTH - player.desR.w;
+        if(player.position.x >= config->window.width - player.desR.w)
+            player.position.x = config->window.width - player.desR.w;
 
-        if(player.position.y >= SCREEN_HEIGHT - player.desR.h) {
-            player.position.y = SCREEN_HEIGHT - player.desR.h;
+        if(player.position.y >= config->window.height - player.desR.h) {
+            player.position.y = config->window.height - player.desR.h;
             player.velocity.y = 0;
             isGround = 1;
         }
